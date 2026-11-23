@@ -326,6 +326,14 @@ class Window:
 
 
 def main():
+    # Prueba de arranque del ejecutable: valida Tk sin acceder a Bluetooth.
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        root = tk.Tk()
+        root.withdraw()
+        root.update_idletasks()
+        root.destroy()
+        print("Bluetooth Audio Doctor: self-test OK")
+        return
     root = tk.Tk()
     Window(root)
     root.mainloop()

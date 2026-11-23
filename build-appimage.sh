@@ -1,32 +1,30 @@
 #!/usr/bin/env bash
-# Empaqueta la GUI en AppImage. Python 3 + tkinter son dependencias del equipo destino.
-set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")"
-if [[ "$(uname -m)" != "x86_64" ]]; then
-  echo 'Esta receta de empaquetado ha sido preparada para x86_64.' >&2; exit 1
+# Construye AppImage x86_64 con Python y Tcl/Tk incorporados mediante PyInstaller.
+set -Eeuo pipefail
+cd "$(dirname "$0")"
+[[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo "Solo Linux x86_64" >&2; exit 1; }
+python3 -c 'import tkinter, _tkinter' || { echo "Instala python3-tk en el equipo compilador" >&2; exit 1; }
+mkdir -p build
+if [[ ! -x build/venv-appimage/bin/python ]]; then
+  python3 -m venv build/venv-appimage || { echo "Instala python3-venv" >&2; exit 1; }
 fi
-if [[ -n "${APPIMAGETOOL:-}" ]]; then
-  TOOL="$APPIMAGETOOL"
-else
-  TOOL="$(command -v appimagetool || true)"
-fi
-if [[ -z "$TOOL" || ! -f "$TOOL" && ! -x "$TOOL" ]]; then
-  cat >&2 <<'EOF'
-No se encontró appimagetool.
-Descárgalo del proyecto oficial:
-  https://github.com/AppImage/appimagetool/releases
-Luego ejecuta:
-  APPIMAGETOOL=/ruta/al/appimagetool-x86_64.AppImage bash build-appimage.sh
-Nota: este empaquetado usa Python 3 + tkinter instalados en la máquina destino.
-EOF
-  exit 2
-fi
+echo "[1/4] Instalando PyInstaller para compilar..."
+build/venv-appimage/bin/python -m pip install --disable-pip-version-check --quiet 'pyinstaller==6.16.0'
+echo "[2/4] Incorporando Python y Tkinter al ejecutable..."
+build/venv-appimage/bin/python -m PyInstaller --noconfirm --clean --onedir \
+  --name BluetoothAudioDoctor \
+  --distpath "$(pwd)/build/pyinstaller-dist" \
+  --workpath "$(pwd)/build/pyinstaller-work" \
+  --specpath "$(pwd)/build/pyinstaller-spec" src/app.py
+test -x build/pyinstaller-dist/BluetoothAudioDoctor/BluetoothAudioDoctor
+echo "[3/4] Preparando AppDir..."
 rm -rf build/AppDir
-mkdir -p build/AppDir/usr/share/bluetooth-audio-doctor build/AppDir/usr/share/icons/hicolor/scalable/apps
-cp src/app.py src/core.py build/AppDir/usr/share/bluetooth-audio-doctor/
+mkdir -p build/AppDir/usr/lib build/AppDir/usr/share/icons/hicolor/scalable/apps
+cp -a build/pyinstaller-dist/BluetoothAudioDoctor build/AppDir/usr/lib/bluetooth-audio-doctor
 cp assets/bluetooth-audio-doctor.svg build/AppDir/bluetooth-audio-doctor.svg
 cp assets/bluetooth-audio-doctor.svg build/AppDir/usr/share/icons/hicolor/scalable/apps/bluetooth-audio-doctor.svg
-cat > build/AppDir/bluetooth-audio-doctor.desktop <<'EOF'
+ln -s bluetooth-audio-doctor.svg build/AppDir/.DirIcon
+cat > build/AppDir/bluetooth-audio-doctor.desktop <<'DESKTOP'
 [Desktop Entry]
 Type=Application
 Name=Bluetooth Audio Doctor
@@ -35,21 +33,29 @@ Exec=AppRun
 Icon=bluetooth-audio-doctor
 Terminal=false
 Categories=Settings;Utility;
-EOF
-cat > build/AppDir/AppRun <<'EOF'
+DESKTOP
+cat > build/AppDir/AppRun <<'APPRUN'
 #!/bin/sh
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-if ! command -v python3 >/dev/null 2>&1; then
-  echo 'Se necesita Python 3 en el equipo.' >&2
-  exit 1
-fi
-if ! python3 -c 'import tkinter' >/dev/null 2>&1; then
-  echo 'Falta tkinter: en Ubuntu/Zorin instala python3-tk.' >&2
-  exit 1
-fi
-exec python3 "$HERE/usr/share/bluetooth-audio-doctor/app.py" "$@"
-EOF
+exec "$HERE/usr/lib/bluetooth-audio-doctor/BluetoothAudioDoctor" "$@"
+APPRUN
 chmod +x build/AppDir/AppRun
-ln -s bluetooth-audio-doctor.svg build/AppDir/.DirIcon
-ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" build/AppDir "$(pwd)/Bluetooth-Audio-Doctor-x86_64.AppImage"
-echo "Creado: $(pwd)/Bluetooth-Audio-Doctor-x86_64.AppImage"
+echo "[4/4] Creando AppImage..."
+if [[ -v APPIMAGETOOL && -n "$APPIMAGETOOL" ]]; then
+  TOOL="$APPIMAGETOOL"
+elif command -v appimagetool >/dev/null 2>&1; then
+  TOOL="$(command -v appimagetool)"
+else
+  TOOL="$(pwd)/build/appimagetool-x86_64.AppImage"
+  if [[ ! -s "$TOOL" ]]; then
+    curl -fL --retry 3 \
+      'https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage' \
+      -o "$TOOL"
+  fi
+  chmod +x "$TOOL"
+fi
+[[ -x "$TOOL" ]] || { echo "appimagetool no es ejecutable: $TOOL" >&2; exit 1; }
+OUTPUT="$(pwd)/Bluetooth-Audio-Doctor-x86_64.AppImage"
+ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 "$TOOL" "$(pwd)/build/AppDir" "$OUTPUT"
+chmod +x "$OUTPUT"
+printf 'AppImage creada: %s\n' "$OUTPUT"

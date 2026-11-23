@@ -37,31 +37,55 @@ sh iniciar.sh
 
 Requiere sesión gráfica, BlueZ, WirePlumber y PipeWire/Pulse (`pactl`).
 
-## Crear AppImage
+## AppImage autónoma para Linux x86_64
 
-La primera versión **no incluye un runtime de Python/Tk**: el AppImage se puede crear, pero requiere `python3` y `python3-tk` instalados en el sistema destino. Para un AppImage completamente independiente habría que empaquetar Python, Tcl/Tk y sus librerías, o reescribir la GUI en Rust/Slint.
+**La AppImage incluye Python y Tkinter (Tcl/Tk)** mediante PyInstaller. El usuario final no necesita instalar Python, Tkinter ni PyInstaller. La herramienta sigue usando los servicios Bluetooth y audio de Linux (BlueZ, WirePlumber, PipeWire), que deben estar disponibles en el equipo.
 
-Descarga `appimagetool` desde [AppImage/appimagetool](https://github.com/AppImage/appimagetool/releases) y ejecuta:
+### Descargar sin compilar
+
+1. Abre [Actions](https://github.com/GhostLm/Bluetooth-Audio-Doctor/actions/workflows/build-appimage.yml) y elige una ejecución terminada correctamente (marca verde).
+2. En **Artifacts**, descarga **Bluetooth-Audio-Doctor-Linux-x86_64**.
+3. Extrae el archivo ZIP que entrega GitHub, marca el fichero `.AppImage` como ejecutable desde las propiedades y ábrelo con doble clic.
+
+La compilación automatizada está preparada para Ubuntu 22.04 con el fin de ampliar la compatibilidad. Se ejecutan pruebas y una comprobación de arranque gráfico antes de publicar el artefacto.
+
+### Compilar en Zorin / Ubuntu
+
+Para compilar, y solo en el ordenador compilador:
 
 ```bash
-APPIMAGETOOL="$HOME/Descargas/appimagetool-x86_64.AppImage" bash build-appimage.sh
+sudo apt install python3 python3-venv python3-tk curl
+bash build-appimage.sh
 ```
 
-Se generará `Bluetooth-Audio-Doctor-x86_64.AppImage`.
+El script crea un entorno virtual aislado, instala PyInstaller 6.16, incluye las bibliotecas de Python y Tkinter en el ejecutable y utiliza `appimagetool`. Descarga esta última herramienta si no la encuentra; también puedes indicar tu copia mediante `APPIMAGETOOL=/ruta/al/appimagetool-x86_64.AppImage bash build-appimage.sh`.
 
-## Ejecutar las pruebas
+El resultado es `Bluetooth-Audio-Doctor-x86_64.AppImage`.
+
+```bash
+chmod +x Bluetooth-Audio-Doctor-x86_64.AppImage
+./Bluetooth-Audio-Doctor-x86_64.AppImage
+```
+
+En sistemas sin soporte FUSE 2, puede ejecutarse desde terminal usando:
+
+```bash
+APPIMAGE_EXTRACT_AND_RUN=1 ./Bluetooth-Audio-Doctor-x86_64.AppImage
+```
+
+Este paquete no instala ningún servicio residente, no modifica el emparejamiento de los auriculares y no requiere permisos de administrador para cambiar la configuración del usuario. La AppImage no incluye BlueZ, WirePlumber ni PipeWire; se apoya en los que ya estén instalados.
+
+### Verificación
 
 ```bash
 python3 -m unittest discover -s tests -v
+# Con pantalla virtual:
+xvfb-run -a python3 -m unittest discover -s tests -v
+# Tras compilar:
+xvfb-run -a build/AppDir/AppRun --self-test
 ```
 
-Para ejecutar las pruebas gráficas sin pantalla física, instala `xvfb` y usa:
-
-```bash
-env -u DISPLAY xvfb-run -a python3 -m unittest discover -s tests -v
-```
-
-Las pruebas usan un simulador para comandos Bluetooth y WirePlumber; no modifican la configuración Bluetooth real.
+El modo `--self-test` valida el arranque de Tk sin consultar Bluetooth ni escribir configuraciones. La compatibilidad real entre distribuciones debe validarse con el hardware correspondiente.
 
 ## Por qué no aplica la corrección a un dispositivo solamente
 
