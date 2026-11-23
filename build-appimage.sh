@@ -19,11 +19,19 @@ build/venv-appimage/bin/python -m PyInstaller --noconfirm --clean --onedir \
 test -x build/pyinstaller-dist/BluetoothAudioDoctor/BluetoothAudioDoctor
 echo "[3/4] Preparando AppDir..."
 rm -rf build/AppDir
-mkdir -p build/AppDir/usr/lib build/AppDir/usr/share/icons/hicolor/scalable/apps
+mkdir -p build/AppDir/usr/lib build/AppDir/usr/share/icons/hicolor/scalable/apps build/AppDir/usr/share/icons/hicolor/256x256/apps
 cp -a build/pyinstaller-dist/BluetoothAudioDoctor build/AppDir/usr/lib/bluetooth-audio-doctor
 cp assets/bluetooth-audio-doctor.svg build/AppDir/bluetooth-audio-doctor.svg
 cp assets/bluetooth-audio-doctor.svg build/AppDir/usr/share/icons/hicolor/scalable/apps/bluetooth-audio-doctor.svg
-ln -s bluetooth-audio-doctor.svg build/AppDir/.DirIcon
+# .DirIcon debe ser PNG válido; la herramienta AppImage puede rechazar un enlace a SVG.
+if ! command -v rsvg-convert >/dev/null 2>&1; then
+  echo "Para generar un icono válido instala librsvg2-bin (rsvg-convert)." >&2
+  exit 1
+fi
+rsvg-convert --width 256 --height 256 assets/bluetooth-audio-doctor.svg \
+  -o build/AppDir/bluetooth-audio-doctor.png
+cp build/AppDir/bluetooth-audio-doctor.png build/AppDir/usr/share/icons/hicolor/256x256/apps/
+ln -s bluetooth-audio-doctor.png build/AppDir/.DirIcon
 cat > build/AppDir/bluetooth-audio-doctor.desktop <<'DESKTOP'
 [Desktop Entry]
 Type=Application

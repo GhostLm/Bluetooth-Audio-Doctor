@@ -54,7 +54,7 @@ La compilación automatizada está preparada para Ubuntu 22.04 con el fin de amp
 Para compilar, y solo en el ordenador compilador:
 
 ```bash
-sudo apt install python3 python3-venv python3-tk curl
+sudo apt install python3 python3-venv python3-tk curl librsvg2-bin
 bash build-appimage.sh
 ```
 
